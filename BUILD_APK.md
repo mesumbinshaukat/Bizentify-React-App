@@ -40,7 +40,7 @@ This will:
 Run this command:
 
 ```bash
-npx eas-cli build --platform android --profile preview
+npx eas-cli build --profile production --platform android
 ```
 
 **What happens:**
