@@ -9,18 +9,53 @@ export interface LocationResult {
 }
 
 /**
+ * Check current location permission status
+ */
+export const getLocationPermissionStatus = async (): Promise<{
+    foreground: boolean;
+    background: boolean;
+}> => {
+    try {
+        const foregroundPermission = await Location.getForegroundPermissionsAsync();
+        const backgroundPermission = await Location.getBackgroundPermissionsAsync();
+
+        return {
+            foreground: foregroundPermission.status === 'granted',
+            background: backgroundPermission.status === 'granted',
+        };
+    } catch (error) {
+        console.error('Error checking location permissions:', error);
+        return { foreground: false, background: false };
+    }
+};
+
+/**
  * Request location permissions
  */
 export const requestLocationPermissions = async (): Promise<boolean> => {
     try {
+        // First check if we already have permissions
+        const currentStatus = await getLocationPermissionStatus();
+
+        if (currentStatus.foreground) {
+            console.log('Location permissions already granted');
+            return true;
+        }
+
+        // Request foreground permission
         const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
 
         if (foregroundStatus !== 'granted') {
+            console.log('Foreground location permission denied');
             return false;
         }
 
-        // Request background permission for better tracking
-        const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+        // Request background permission for better tracking (optional)
+        try {
+            await Location.requestBackgroundPermissionsAsync();
+        } catch (error) {
+            console.log('Background permission request failed, but foreground is granted');
+        }
 
         return foregroundStatus === 'granted';
     } catch (error) {

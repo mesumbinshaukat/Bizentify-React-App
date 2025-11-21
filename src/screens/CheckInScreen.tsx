@@ -11,6 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import { attendanceApi } from '../api/attendance';
 import {
     requestLocationPermissions,
+    getLocationPermissionStatus,
     isLocationEnabled,
     getAverageLocation,
     calculateDistance,
@@ -36,22 +37,30 @@ export default function CheckInScreen() {
 
     const initializeLocation = async () => {
         try {
-            const hasPermission = await requestLocationPermissions();
-            if (!hasPermission) {
-                Alert.alert(
-                    'Permission Required',
-                    'Location permission is required for attendance tracking.',
-                    [{ text: 'OK', onPress: () => navigation.goBack() }]
-                );
-                return;
-            }
-
+            // Check if GPS is enabled first
             const gpsEnabled = await isLocationEnabled();
             if (!gpsEnabled) {
                 Alert.alert(
                     'GPS Disabled',
-                    'Please enable GPS to mark attendance.',
-                    [{ text: 'OK', onPress: () => navigation.goBack() }]
+                    'Please enable location services in your device settings to mark attendance.',
+                    [
+                        { text: 'Cancel', onPress: () => navigation.goBack() },
+                        { text: 'Retry', onPress: () => initializeLocation() }
+                    ]
+                );
+                return;
+            }
+
+            // Check and request permissions
+            const hasPermission = await requestLocationPermissions();
+            if (!hasPermission) {
+                Alert.alert(
+                    'Permission Required',
+                    'Location permission is required for attendance tracking. Please grant location permission in your device settings.',
+                    [
+                        { text: 'Cancel', onPress: () => navigation.goBack() },
+                        { text: 'Retry', onPress: () => initializeLocation() }
+                    ]
                 );
                 return;
             }
@@ -85,7 +94,10 @@ export default function CheckInScreen() {
             Alert.alert(
                 'Location Error',
                 error.message || 'Failed to get your location. Please try again.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
+                [
+                    { text: 'Cancel', onPress: () => navigation.goBack() },
+                    { text: 'Retry', onPress: () => initializeLocation() }
+                ]
             );
         }
     };
