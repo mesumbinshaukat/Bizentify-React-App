@@ -43,6 +43,7 @@
       }
     },
     "plugins": [
+      "./plugins/withKotlinFix.js",
       [
         "expo-build-properties",
         {
