@@ -39,9 +39,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install expo-updates CLI dependencies
-        run: npm install -g fs-extra
-
       - name: Determine branch
         id: branch
         run: |
