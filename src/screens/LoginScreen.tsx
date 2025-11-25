@@ -45,8 +45,9 @@ export default function LoginScreen() {
             <View style={styles.content}>
                 {/* Logo/Header */}
                 <View style={styles.header}>
-                    <Text style={styles.title}>Attendance App</Text>
-                    <Text style={styles.subtitle}>Employee Login</Text>
+                    <Text style={styles.title}>Bizentify</Text>
+                    <Text style={styles.tagline}>Empowering Your Business Growth</Text>
+                    <Text style={styles.subtitle}>Employee Attendance Portal</Text>
                 </View>
 
                 {/* Login Form */}
@@ -124,11 +125,18 @@ const styles = StyleSheet.create({
         fontSize: 32,
         fontWeight: 'bold',
         color: COLORS.primary,
-        marginBottom: 8,
+        marginBottom: 4,
+    },
+    tagline: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        fontStyle: 'italic',
+        marginBottom: 12,
     },
     subtitle: {
-        fontSize: 18,
-        color: COLORS.textSecondary,
+        fontSize: 16,
+        color: COLORS.text,
+        fontWeight: '500',
     },
     form: {
         width: '100%',
