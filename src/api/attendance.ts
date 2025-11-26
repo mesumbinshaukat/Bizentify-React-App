@@ -1,5 +1,6 @@
 import apiClient from './client';
-import { ApiResponse, Attendance, AttendanceListResponse, CheckInRequest, DashboardStats } from '../types';
+import { ApiResponse, Attendance, AttendanceListResponse, DashboardStats } from '../types';
+import { AttendanceStatus, CheckInRequest, CheckOutRequest } from '../types/attendance';
 
 export const attendanceApi = {
     getAttendanceList: async (page: number = 1, perPage: number = 15): Promise<AttendanceListResponse> => {
@@ -9,13 +10,30 @@ export const attendanceApi = {
         return response.data;
     },
 
-    checkIn: async (location: CheckInRequest): Promise<ApiResponse<Attendance>> => {
-        const response = await apiClient.post<ApiResponse<Attendance>>('/attendance/check-in', location);
+    /**
+     * Get current attendance status for the authenticated employee
+     * Includes today's attendance, check-in/check-out status, and pending checkouts
+     */
+    getAttendanceStatus: async (): Promise<ApiResponse<AttendanceStatus>> => {
+        const response = await apiClient.get<ApiResponse<AttendanceStatus>>('/attendance/status');
         return response.data;
     },
 
-    checkOut: async (location: CheckInRequest): Promise<ApiResponse<Attendance>> => {
-        const response = await apiClient.post<ApiResponse<Attendance>>('/attendance/check-out', location);
+    /**
+     * Check in for attendance
+     * Location is optional - backend will determine if it's required based on settings
+     */
+    checkIn: async (request: CheckInRequest = {}): Promise<ApiResponse<Attendance>> => {
+        const response = await apiClient.post<ApiResponse<Attendance>>('/attendance/check-in', request);
+        return response.data;
+    },
+
+    /**
+     * Check out from attendance
+     * Location is optional - backend will determine if it's required based on settings
+     */
+    checkOut: async (request: CheckOutRequest = {}): Promise<ApiResponse<Attendance>> => {
+        const response = await apiClient.post<ApiResponse<Attendance>>('/attendance/check-out', request);
         return response.data;
     },
 

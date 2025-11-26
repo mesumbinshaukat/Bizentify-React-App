@@ -11,12 +11,13 @@ import { useNavigation } from '@react-navigation/native';
 import { attendanceApi } from '../api/attendance';
 import {
     requestLocationPermissions,
-    getLocationPermissionStatus,
     isLocationEnabled,
     getAverageLocation,
     calculateDistance,
     formatDistance,
 } from '../utils/location';
+import { getAttendanceSettings, isLocationRequired } from '../services/attendanceSettings';
+import { AttendanceSettings } from '../types/attendance';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS, OFFICE_LOCATION } from '../constants/config';
 
@@ -24,16 +25,64 @@ export default function CheckInScreen() {
     const navigation = useNavigation();
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const [locationStatus, setLocationStatus] = useState('Initializing...');
+    const [isInitializing, setIsInitializing] = useState(true);
+    const [locationStatus, setLocationStatus] = useState('Checking settings...');
     const [currentLocation, setCurrentLocation] = useState<any>(null);
     const [officeLocation, setOfficeLocation] = useState(OFFICE_LOCATION);
     const [distance, setDistance] = useState<number | null>(null);
     const [isWithinRadius, setIsWithinRadius] = useState(false);
     const [isMocked, setIsMocked] = useState(false);
+    const [attendanceSettings, setAttendanceSettings] = useState<AttendanceSettings | null>(null);
+    const [locationIsRequired, setLocationIsRequired] = useState(true);
 
     useEffect(() => {
-        initializeLocation();
+        initialize();
     }, []);
+
+    const initialize = async () => {
+        try {
+            setIsInitializing(true);
+            setLocationStatus('Checking attendance settings...');
+
+            // Fetch attendance settings first
+            const settings = await getAttendanceSettings();
+            setAttendanceSettings(settings);
+
+            const needsLocation = isLocationRequired(settings);
+            setLocationIsRequired(needsLocation);
+
+            // Update office location from settings if available
+            if (settings.location_guard.office_configured) {
+                setOfficeLocation({
+                    latitude: settings.location_guard.office_latitude!,
+                    longitude: settings.location_guard.office_longitude!,
+                    radius: settings.location_guard.office_radius_meters!,
+                });
+            }
+
+            if (!needsLocation) {
+                // Location not required, ready to check in
+                setLocationStatus('Location not required');
+                setIsInitializing(false);
+                return;
+            }
+
+            // Location is required, proceed with location initialization
+            await initializeLocation();
+        } catch (error: any) {
+            console.error('Initialization error:', error);
+            Alert.alert(
+                'Initialization Error',
+                error.message || 'Failed to initialize. Please try again.',
+                [
+                    { text: 'Cancel', onPress: () => navigation.goBack() },
+                    { text: 'Retry', onPress: () => initialize() }
+                ]
+            );
+        } finally {
+            setIsInitializing(false);
+        }
+    };
 
     const initializeLocation = async () => {
         try {
@@ -103,42 +152,125 @@ export default function CheckInScreen() {
     };
 
     const handleCheckIn = async () => {
-        if (!currentLocation) {
-            Alert.alert('Error', 'Location not available. Please wait...');
-            return;
-        }
+        // Validate location if required
+        if (locationIsRequired) {
+            if (!currentLocation) {
+                Alert.alert('Error', 'Location not available. Please wait...');
+                return;
+            }
 
-        if (isMocked) {
-            Alert.alert('Error', 'Mock location detected. Please disable GPS spoofing.');
-            return;
-        }
+            if (isMocked) {
+                Alert.alert('Error', 'Mock location detected. Please disable GPS spoofing.');
+                return;
+            }
 
-        if (!isWithinRadius) {
-            Alert.alert(
-                'Out of Range',
-                `You are ${formatDistance(distance!)} away from the office. You must be within ${officeLocation.radius}m to check in.`
-            );
-            return;
+            if (!isWithinRadius) {
+                Alert.alert(
+                    'Out of Range',
+                    `You are ${formatDistance(distance!)} away from the office. You must be within ${officeLocation.radius}m to check in.`
+                );
+                return;
+            }
         }
 
         setIsLoading(true);
         try {
-            await attendanceApi.checkIn({
-                latitude: currentLocation.latitude,
-                longitude: currentLocation.longitude,
-            });
+            // Prepare request with optional location
+            const request = locationIsRequired && currentLocation
+                ? {
+                    latitude: currentLocation.latitude,
+                    longitude: currentLocation.longitude,
+                }
+                : {};
+
+            await attendanceApi.checkIn(request);
 
             Alert.alert('Success', 'Check-in successful!', [
                 { text: 'OK', onPress: () => navigation.goBack() },
             ]);
         } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Check-in failed. Please try again.';
+            // Parse backend error messages
+            const errorData = error.response?.data;
+            let errorMessage = 'Check-in failed. Please try again.';
+
+            if (errorData) {
+                if (errorData.message) {
+                    errorMessage = errorData.message;
+                }
+
+                // Handle specific error cases
+                if (errorData.distance && errorData.required_distance) {
+                    errorMessage = `You are ${errorData.distance.toFixed(2)}m away from the office. You must be within ${errorData.required_distance}m to check in.`;
+                }
+            }
+
             Alert.alert('Check-in Failed', errorMessage);
         } finally {
             setIsLoading(false);
         }
     };
 
+    // Show loading state while initializing
+    if (isInitializing) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>{locationStatus}</Text>
+            </View>
+        );
+    }
+
+    // If location not required, show simplified UI
+    if (!locationIsRequired) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.mainCard}>
+                    <Text style={styles.title}>Check-In</Text>
+
+                    <View style={styles.statusBadge}>
+                        <View style={[styles.statusDot, styles.dotSuccess]} />
+                        <Text style={[styles.statusText, styles.textSuccess]}>
+                            Ready to Check In
+                        </Text>
+                    </View>
+
+                    <View style={styles.infoBox}>
+                        <Text style={styles.infoIcon}>ℹ️</Text>
+                        <Text style={styles.infoText}>
+                            Location verification is not required for your attendance.
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity
+                        style={[styles.checkInButton, isLoading && styles.buttonDisabled]}
+                        onPress={handleCheckIn}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <>
+                                <Text style={styles.buttonIcon}>✓</Text>
+                                <Text style={styles.buttonText}>Check In</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.cancelButton}
+                        onPress={() => navigation.goBack()}
+                        disabled={isLoading}
+                    >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
+    // Location required - show full location UI
     if (!currentLocation) {
         return (
             <View style={styles.loadingContainer}>
