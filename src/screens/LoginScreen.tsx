@@ -47,7 +47,7 @@ export default function LoginScreen() {
                 <View style={styles.header}>
                     <Text style={styles.title}>Bizentify</Text>
                     <Text style={styles.tagline}>Empowering Your Business Growth</Text>
-                    <Text style={styles.subtitle}>Employee Attendance Portal/Sytem</Text>
+                    <Text style={styles.subtitle}>Employee Attendance Portal/System</Text>
                 </View>
 
                 {/* Login Form */}
