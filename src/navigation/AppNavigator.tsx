@@ -7,6 +7,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import CheckInScreen from '../screens/CheckInScreen';
 import CheckOutScreen from '../screens/CheckOutScreen';
 import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
+import FixRequestScreen from '../screens/FixRequestScreen';
 import { ActivityIndicator, View } from 'react-native';
 import { COLORS } from '../constants/config';
 
@@ -56,6 +57,11 @@ export default function AppNavigator() {
                         name="History"
                         component={AttendanceHistoryScreen}
                         options={{ title: 'Attendance History' }}
+                    />
+                    <Stack.Screen
+                        name="FixRequest"
+                        component={FixRequestScreen}
+                        options={{ title: 'Request Attendance Fix' }}
                     />
                 </Stack.Navigator>
             )}
