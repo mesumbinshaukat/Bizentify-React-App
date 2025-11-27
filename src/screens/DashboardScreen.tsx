@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,51 +10,27 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
-import { attendanceApi } from '../api/attendance';
-import { DashboardStats, Attendance } from '../types';
+import { useAttendanceStatus } from '../hooks/useAttendanceStatus';
+import { useOTAUpdates } from '../hooks/useOTAUpdates';
+import { PendingCheckoutAlert } from '../components/PendingCheckoutAlert';
+import { UpdateNotification } from '../components/UpdateNotification';
+import { AttendanceStatusCard } from '../components/AttendanceStatusCard';
 import { COLORS } from '../constants/config';
 
 export default function DashboardScreen() {
     const navigation = useNavigation();
     const { user, logout } = useAuth();
-    const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
 
-    useEffect(() => {
-        loadDashboard();
-    }, []);
+    // Real-time attendance status with 30s polling
+    const { status, isLoading, error, refetch, lastFetch } = useAttendanceStatus();
 
-    const loadDashboard = async () => {
-        try {
-            const [dashboardResponse, attendanceResponse] = await Promise.all([
-                attendanceApi.getDashboard(),
-                attendanceApi.getAttendanceList(1, 1),
-            ]);
-
-            setStats(dashboardResponse.data);
-
-            // Get today's attendance if exists
-            if (attendanceResponse.data.length > 0) {
-                const today = new Date().toISOString().split('T')[0];
-                const todayRecord = attendanceResponse.data.find(
-                    (a) => a.attendance_date === today
-                );
-                setTodayAttendance(todayRecord || null);
-            }
-        } catch (error) {
-            console.error('Failed to load dashboard:', error);
-        } finally {
-            setIsLoading(false);
-            setIsRefreshing(false);
-        }
-    };
-
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        loadDashboard();
-    };
+    // OTA update detection
+    const {
+        updateAvailable,
+        isDownloading,
+        downloadProgress,
+        downloadAndReload
+    } = useOTAUpdates();
 
     const handleCheckIn = () => {
         navigation.navigate('CheckIn' as never);
@@ -64,22 +40,55 @@ export default function DashboardScreen() {
         navigation.navigate('CheckOut' as never);
     };
 
+    const handleRequestFix = () => {
+        if (status?.pending_attendance) {
+            navigation.navigate('FixRequest' as never, {
+                attendanceId: status.pending_attendance.id,
+                attendanceDate: status.pending_attendance.date,
+                checkInTime: status.pending_attendance.check_in,
+            });
+        }
+    };
+
+    const handleViewHistory = () => {
+        navigation.navigate('History' as never);
+    };
+
+    // Refetch status when returning from check-in/check-out screens
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            refetch();
+        });
+
+        return unsubscribe;
+    }, [navigation, refetch]);
+
     if (isLoading) {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={styles.loadingText}>Loading attendance status...</Text>
             </View>
         );
     }
 
-    const canCheckIn = !stats?.attendance.today_checked_in;
-    const canCheckOut = stats?.attendance.today_checked_in && !stats?.attendance.today_checked_out;
+    if (error) {
+        return (
+            <View style={styles.errorContainer}>
+                <Text style={styles.errorIcon}>⚠️</Text>
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={refetch}>
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
 
     return (
         <ScrollView
             style={styles.container}
             refreshControl={
-                <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+                <RefreshControl refreshing={false} onRefresh={refetch} />
             }
         >
             {/* Header */}
@@ -93,86 +102,86 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* Today's Status Card */}
-            <View style={styles.statusCard}>
-                <Text style={styles.cardTitle}>Today's Status</Text>
-                <View style={styles.statusRow}>
-                    <View style={styles.statusItem}>
-                        <Text style={styles.statusLabel}>Check-In</Text>
-                        <Text style={[styles.statusValue, stats?.attendance.today_checked_in && styles.statusActive]}>
-                            {stats?.attendance.today_checked_in ? '✓ Done' : '✗ Pending'}
-                        </Text>
-                    </View>
-                    <View style={styles.statusItem}>
-                        <Text style={styles.statusLabel}>Check-Out</Text>
-                        <Text style={[styles.statusValue, stats?.attendance.today_checked_out && styles.statusActive]}>
-                            {stats?.attendance.today_checked_out ? '✓ Done' : '✗ Pending'}
-                        </Text>
-                    </View>
-                </View>
+            {/* OTA Update Notification */}
+            {updateAvailable && (
+                <UpdateNotification
+                    isDownloading={isDownloading}
+                    downloadProgress={downloadProgress}
+                    onUpdate={downloadAndReload}
+                />
+            )}
 
-                {todayAttendance && (
-                    <View style={styles.timeInfo}>
-                        {todayAttendance.check_in && (
-                            <Text style={styles.timeText}>
-                                In: {new Date(todayAttendance.check_in).toLocaleTimeString()}
-                            </Text>
-                        )}
-                        {todayAttendance.check_out && (
-                            <Text style={styles.timeText}>
-                                Out: {new Date(todayAttendance.check_out).toLocaleTimeString()}
-                            </Text>
-                        )}
-                        {todayAttendance.formatted_work_duration && (
-                            <Text style={styles.durationText}>
-                                Duration: {todayAttendance.formatted_work_duration}
-                            </Text>
-                        )}
-                    </View>
-                )}
-            </View>
+            {/* Pending Checkout Alert */}
+            {status?.has_pending_checkout && status.pending_attendance && (
+                <PendingCheckoutAlert
+                    attendance={status.pending_attendance}
+                    onRequestFix={handleRequestFix}
+                />
+            )}
+
+            {/* Today's Attendance Status Card */}
+            {status && (
+                <AttendanceStatusCard status={status} />
+            )}
 
             {/* Quick Actions */}
             <View style={styles.actionsContainer}>
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.checkInButton, !canCheckIn && styles.buttonDisabled]}
+                    style={[
+                        styles.actionButton,
+                        styles.checkInButton,
+                        !status?.can_check_in && styles.buttonDisabled,
+                    ]}
                     onPress={handleCheckIn}
-                    disabled={!canCheckIn}
+                    disabled={!status?.can_check_in}
                 >
+                    <Text style={styles.actionIcon}>📍</Text>
                     <Text style={styles.actionButtonText}>Check In</Text>
+                    {!status?.can_check_in && status?.checked_in_today && (
+                        <Text style={styles.actionHint}>Already checked in</Text>
+                    )}
+                    {!status?.can_check_in && status?.has_pending_checkout && (
+                        <Text style={styles.actionHint}>Resolve pending checkout</Text>
+                    )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.checkOutButton, !canCheckOut && styles.buttonDisabled]}
+                    style={[
+                        styles.actionButton,
+                        styles.checkOutButton,
+                        !status?.can_check_out && styles.buttonDisabled,
+                    ]}
                     onPress={handleCheckOut}
-                    disabled={!canCheckOut}
+                    disabled={!status?.can_check_out}
                 >
+                    <Text style={styles.actionIcon}>🏁</Text>
                     <Text style={styles.actionButtonText}>Check Out</Text>
+                    {!status?.can_check_out && !status?.checked_in_today && (
+                        <Text style={styles.actionHint}>Check in first</Text>
+                    )}
+                    {!status?.can_check_out && status?.checked_out_today && (
+                        <Text style={styles.actionHint}>Already checked out</Text>
+                    )}
                 </TouchableOpacity>
             </View>
 
-            {/* Monthly Stats */}
-            <View style={styles.statsCard}>
-                <Text style={styles.cardTitle}>This Month</Text>
-                <View style={styles.statsGrid}>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statValue}>{stats?.attendance.monthly_records || 0}</Text>
-                        <Text style={styles.statLabel}>Days Present</Text>
-                    </View>
-                    <View style={styles.statItem}>
-                        <Text style={styles.statValue}>{stats?.invoices.total || 0}</Text>
-                        <Text style={styles.statLabel}>Total Invoices</Text>
-                    </View>
-                </View>
-            </View>
-
             {/* Navigation to History */}
-            <TouchableOpacity
-                style={styles.historyButton}
-                onPress={() => navigation.navigate('History' as never)}
-            >
+            <TouchableOpacity style={styles.historyButton} onPress={handleViewHistory}>
+                <Text style={styles.historyIcon}>📅</Text>
                 <Text style={styles.historyButtonText}>View Attendance History</Text>
             </TouchableOpacity>
+
+            {/* Last Updated Info */}
+            {lastFetch && (
+                <View style={styles.lastUpdateContainer}>
+                    <Text style={styles.lastUpdateText}>
+                        Last updated: {lastFetch.toLocaleTimeString()}
+                    </Text>
+                    <Text style={styles.lastUpdateSubtext}>
+                        Auto-refreshes every 30 seconds
+                    </Text>
+                </View>
+            )}
         </ScrollView>
     );
 }
@@ -187,6 +196,39 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: COLORS.background,
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 14,
+        color: COLORS.textSecondary,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: COLORS.background,
+        padding: 24,
+    },
+    errorIcon: {
+        fontSize: 48,
+        marginBottom: 16,
+    },
+    errorText: {
+        fontSize: 16,
+        color: COLORS.error,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    retryButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 32,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
     },
     header: {
         flexDirection: 'row',
@@ -212,64 +254,11 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    statusCard: {
-        backgroundColor: COLORS.surface,
-        margin: 16,
-        padding: 20,
-        borderRadius: 12,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    cardTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: COLORS.text,
-        marginBottom: 16,
-    },
-    statusRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    statusItem: {
-        alignItems: 'center',
-    },
-    statusLabel: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        marginBottom: 8,
-    },
-    statusValue: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: COLORS.error,
-    },
-    statusActive: {
-        color: COLORS.success,
-    },
-    timeInfo: {
-        marginTop: 16,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-    },
-    timeText: {
-        fontSize: 14,
-        color: COLORS.text,
-        marginBottom: 4,
-    },
-    durationText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: COLORS.primary,
-        marginTop: 8,
-    },
     actionsContainer: {
         flexDirection: 'row',
         paddingHorizontal: 16,
         gap: 12,
+        marginTop: 8,
     },
     actionButton: {
         flex: 1,
@@ -281,6 +270,8 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 4,
+        minHeight: 120,
+        justifyContent: 'center',
     },
     checkInButton: {
         backgroundColor: COLORS.success,
@@ -291,38 +282,20 @@ const styles = StyleSheet.create({
     buttonDisabled: {
         opacity: 0.5,
     },
+    actionIcon: {
+        fontSize: 32,
+        marginBottom: 8,
+    },
     actionButtonText: {
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '600',
     },
-    statsCard: {
-        backgroundColor: COLORS.surface,
-        margin: 16,
-        padding: 20,
-        borderRadius: 12,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    statsGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    statItem: {
-        alignItems: 'center',
-    },
-    statValue: {
-        fontSize: 32,
-        fontWeight: 'bold',
-        color: COLORS.primary,
-        marginBottom: 8,
-    },
-    statLabel: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
+    actionHint: {
+        color: 'rgba(255, 255, 255, 0.8)',
+        fontSize: 11,
+        marginTop: 4,
+        textAlign: 'center',
     },
     historyButton: {
         backgroundColor: COLORS.surface,
@@ -332,10 +305,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: COLORS.primary,
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
+    historyIcon: {
+        fontSize: 20,
+        marginRight: 8,
     },
     historyButtonText: {
         color: COLORS.primary,
         fontSize: 16,
         fontWeight: '600',
+    },
+    lastUpdateContainer: {
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingBottom: 24,
+    },
+    lastUpdateText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+    },
+    lastUpdateSubtext: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
+        marginTop: 2,
+        fontStyle: 'italic',
     },
 });

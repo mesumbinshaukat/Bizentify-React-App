@@ -185,9 +185,13 @@ export default function CheckInScreen() {
 
             await attendanceApi.checkIn(request);
 
-            Alert.alert('Success', 'Check-in successful!', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            // Navigate back immediately - DashboardScreen will refetch status
+            navigation.goBack();
+
+            // Show success message after navigation
+            setTimeout(() => {
+                Alert.alert('Success', 'Check-in successful!');
+            }, 300);
         } catch (error: any) {
             // Parse backend error messages
             const errorData = error.response?.data;

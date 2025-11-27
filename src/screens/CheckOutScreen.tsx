@@ -170,9 +170,13 @@ export default function CheckOutScreen() {
 
             await attendanceApi.checkOut(request);
 
-            Alert.alert('Success', 'Check-out successful!', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            // Navigate back immediately - DashboardScreen will refetch status
+            navigation.goBack();
+
+            // Show success message after navigation
+            setTimeout(() => {
+                Alert.alert('Success', 'Check-out successful!');
+            }, 300);
         } catch (error: any) {
             // Parse backend error messages
             const errorData = error.response?.data;

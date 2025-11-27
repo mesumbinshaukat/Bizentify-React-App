@@ -71,3 +71,50 @@ export interface AttendanceErrorResponse {
     distance?: number;
     required_distance?: number;
 }
+
+// Fix Request types
+export interface FixRequest {
+    id: number;
+    employee_user_id: number;
+    attendance_id: number;
+    reason: string;
+    status: 'pending' | 'approved' | 'rejected';
+    admin_notes?: string;
+    processed_at?: string;
+    created_at: string;
+    updated_at: string;
+    attendance?: AttendanceRecord;
+}
+
+export interface CreateFixRequestRequest {
+    attendance_id: number;
+    reason: string;
+}
+
+export interface ProcessFixRequestRequest {
+    status: 'approved' | 'rejected';
+    admin_notes?: string;
+}
+
+// Office Schedule types
+export interface OfficeSchedule {
+    id: number;
+    start_time: string;
+    end_time: string;
+    working_days: string[];
+    timezone: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface OfficeScheduleResponse {
+    schedule: OfficeSchedule | null;
+    has_schedule: boolean;
+}
+
+// Enhanced Attendance Status (includes fix requests)
+export interface EnhancedAttendanceStatus extends AttendanceStatus {
+    pending_fix_requests?: FixRequest[];
+    can_request_fix: boolean;
+    office_schedule?: OfficeSchedule;
+}
