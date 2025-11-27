@@ -90,28 +90,6 @@ export const useOTAUpdates = (): OTAUpdateState => {
         checkForUpdates();
     }, []);
 
-    // Listen for update events
-    useEffect(() => {
-        if (__DEV__) return;
-
-        const subscription = Updates.addListener((event) => {
-            if (event.type === Updates.UpdateEventType.UPDATE_AVAILABLE) {
-                console.log('Update event: Update available');
-                setUpdateAvailable(true);
-            } else if (event.type === Updates.UpdateEventType.NO_UPDATE_AVAILABLE) {
-                console.log('Update event: No update available');
-                setUpdateAvailable(false);
-            } else if (event.type === Updates.UpdateEventType.ERROR) {
-                console.error('Update event: Error', event.message);
-                setError(event.message || 'Update error');
-            }
-        });
-
-        return () => {
-            subscription.remove();
-        };
-    }, []);
-
     return {
         updateAvailable,
         isChecking,
