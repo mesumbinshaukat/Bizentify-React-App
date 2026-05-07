@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'https://bizentify.envisionxperts.com/api/v1';
+export const API_BASE_URL = 'https://crm.worldoftech.company/api/v1';
 
 export const OFFICE_LOCATION = {
   latitude: 0, // Will be fetched from user's admin settings

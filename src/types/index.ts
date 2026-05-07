@@ -100,3 +100,102 @@ export interface LocationCoords {
     heading: number | null;
     speed: number | null;
 }
+
+// Salary-related types
+export interface SalaryRelease {
+    id: number;
+    employee_id: number;
+    employee_name?: string;
+    currency_id: number;
+    currency_code?: string;
+    currency_symbol?: string;
+    month: number;
+    year: number;
+    basic_salary: number;
+    bonus: number;
+    commission: number;
+    deductions: number;
+    net_salary: number;
+    release_date: string;
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Bonus {
+    id: number;
+    employee_id: number;
+    employee_name?: string;
+    currency_id: number;
+    currency_code?: string;
+    currency_symbol?: string;
+    amount: number;
+    description: string;
+    date: string;
+    release_type: 'with_salary' | 'separate';
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Invoice {
+    id: number;
+    client_id: number;
+    client_name?: string;
+    employee_id: number;
+    employee_name?: string;
+    currency_id: number;
+    currency_code?: string;
+    currency_symbol?: string;
+    due_date: string;
+    amount: number;
+    tax: number;
+    total_amount: number;
+    special_note?: string;
+    status: 'pending' | 'paid' | 'overdue';
+    approval_status: 'pending' | 'approved' | 'rejected';
+    milestones?: InvoiceMilestone[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface InvoiceMilestone {
+    id: number;
+    title: string;
+    amount: number;
+    due_date: string;
+    completed: boolean;
+}
+
+export interface Client {
+    id: number;
+    name: string;
+    email: string;
+    primary_contact: string;
+    website?: string;
+    profile_photo_url?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Currency {
+    id: number;
+    code: string;
+    name: string;
+    symbol: string;
+    conversion_rate: number;
+    is_base: boolean;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface OfficeClosure {
+    id: number;
+    start_date: string;
+    end_date: string;
+    reason: string;
+    is_single_day: boolean;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}

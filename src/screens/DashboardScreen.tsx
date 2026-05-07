@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -16,6 +16,8 @@ import { PendingCheckoutAlert } from '../components/PendingCheckoutAlert';
 import { UpdateNotification } from '../components/UpdateNotification';
 import { AttendanceStatusCard } from '../components/AttendanceStatusCard';
 import { COLORS } from '../constants/config';
+import { attendanceApi } from '../api';
+import { DashboardStats } from '../types';
 
 export default function DashboardScreen() {
     const navigation = useNavigation();
@@ -23,6 +25,10 @@ export default function DashboardScreen() {
 
     // Real-time attendance status with 30s polling
     const { status, isLoading, error, refetch, lastFetch } = useAttendanceStatus();
+
+    // Dashboard statistics
+    const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+    const [isLoadingStats, setIsLoadingStats] = useState(false);
 
     // OTA update detection
     const {
@@ -54,10 +60,30 @@ export default function DashboardScreen() {
         navigation.navigate('History' as never);
     };
 
+    // Load dashboard statistics
+    useEffect(() => {
+        loadDashboardStats();
+    }, []);
+
+    const loadDashboardStats = async () => {
+        try {
+            setIsLoadingStats(true);
+            const response = await attendanceApi.getDashboard();
+            if (response.success && response.data) {
+                setDashboardStats(response.data);
+            }
+        } catch (error) {
+            console.error('Failed to load dashboard stats:', error);
+        } finally {
+            setIsLoadingStats(false);
+        }
+    };
+
     // Refetch status when returning from check-in/check-out screens
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', () => {
             refetch();
+            loadDashboardStats();
         });
 
         return unsubscribe;
@@ -170,6 +196,32 @@ export default function DashboardScreen() {
                 <Text style={styles.historyIcon}>📅</Text>
                 <Text style={styles.historyButtonText}>View Attendance History</Text>
             </TouchableOpacity>
+
+            {/* Dashboard Statistics */}
+            {dashboardStats && (
+                <View style={styles.statsContainer}>
+                    <Text style={styles.statsTitle}>Overview</Text>
+                    
+                    {/* Attendance Stats */}
+                    <View style={styles.statCard}>
+                        <Text style={styles.statLabel}>Monthly Attendance</Text>
+                        <Text style={styles.statValue}>{dashboardStats.attendance.monthly_records} days</Text>
+                    </View>
+
+                    {/* Invoice Stats */}
+                    <View style={styles.statCard}>
+                        <Text style={styles.statLabel}>Total Invoices</Text>
+                        <Text style={styles.statValue}>{dashboardStats.invoices.total}</Text>
+                    </View>
+
+                    {dashboardStats.invoices.pending_approval > 0 && (
+                        <View style={[styles.statCard, styles.statCardWarning]}>
+                            <Text style={styles.statLabel}>Pending Approval</Text>
+                            <Text style={styles.statValue}>{dashboardStats.invoices.pending_approval}</Text>
+                        </View>
+                    )}
+                </View>
+            )}
 
             {/* Last Updated Info */}
             {lastFetch && (
@@ -331,5 +383,41 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         marginTop: 2,
         fontStyle: 'italic',
+    },
+    statsContainer: {
+        margin: 16,
+        backgroundColor: COLORS.surface,
+        borderRadius: 12,
+        padding: 16,
+        elevation: 2,
+    },
+    statsTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: COLORS.text,
+        marginBottom: 12,
+    },
+    statCard: {
+        backgroundColor: COLORS.background,
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 8,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    statCardWarning: {
+        backgroundColor: '#FFF3E0',
+        borderLeftWidth: 4,
+        borderLeftColor: COLORS.warning,
+    },
+    statLabel: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+    },
+    statValue: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.text,
     },
 });

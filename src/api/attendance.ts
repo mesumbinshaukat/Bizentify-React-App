@@ -46,4 +46,15 @@ export const attendanceApi = {
         const response = await apiClient.get<ApiResponse<DashboardStats>>('/dashboard');
         return response.data;
     },
+
+    /**
+     * Get attendance statistics (Admin only)
+     */
+    getAttendanceStatistics: async (params?: {
+        date_from?: string;
+        date_to?: string;
+    }): Promise<ApiResponse<any>> => {
+        const response = await apiClient.get<ApiResponse<any>>('/attendance/statistics', { params });
+        return response.data;
+    },
 };
